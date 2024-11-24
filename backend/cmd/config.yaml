@@ -1,0 +1,7 @@
+server:
+  port: ":3000"
+
+registry:
+  baseUrl: "http://192.168.4.36:5000"
+  username: ""
+  password: ""
