@@ -8,7 +8,7 @@ import (
 // RegisterRoutes registers all routes for images
 func RegisterRoutes(app *fiber.App, cfg config.Config) {
 	// Initialize the service with the provided config
-	service := NewImageService(cfg)
+	service, _ := NewImageService()
 
 	imagesGroup := app.Group("/images")
 
