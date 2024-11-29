@@ -1,6 +1,10 @@
 package images
 
 import (
+	"strings"
+
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/image"
 	"github.com/genc-murat/harborview/pkg/config"
 	"github.com/gofiber/fiber/v2"
 )
@@ -12,34 +16,54 @@ func RegisterRoutes(app *fiber.App, cfg config.Config) {
 
 	imagesGroup := app.Group("/images")
 
-	// List all images
+	// Existing routes
 	imagesGroup.Get("/", func(c *fiber.Ctx) error {
 		return GetImages(c, service)
 	})
 
-	// List tags for a specific image
 	imagesGroup.Get("/:name/tags", func(c *fiber.Ctx) error {
 		return GetTags(c, service)
 	})
 
-	// Remove a specific image
 	imagesGroup.Delete("/:name", func(c *fiber.Ctx) error {
 		return RemoveImage(c, service)
 	})
 
-	// Search for images
 	imagesGroup.Get("/search", func(c *fiber.Ctx) error {
 		return SearchImages(c, service)
 	})
 
-	// Get history of a specific image
 	imagesGroup.Get("/:name/history", func(c *fiber.Ctx) error {
 		return GetImageHistory(c, service)
 	})
 
-	// Delete unused images
 	imagesGroup.Delete("/unused", func(c *fiber.Ctx) error {
 		return DeleteUnusedImages(c, service)
+	})
+
+	// New routes
+	imagesGroup.Post("/build", func(c *fiber.Ctx) error {
+		return BuildImage(c, service)
+	})
+
+	imagesGroup.Post("/pull", func(c *fiber.Ctx) error {
+		return PullImage(c, service)
+	})
+
+	imagesGroup.Post("/push/:name", func(c *fiber.Ctx) error {
+		return PushImage(c, service)
+	})
+
+	imagesGroup.Post("/save", func(c *fiber.Ctx) error {
+		return SaveImage(c, service)
+	})
+
+	imagesGroup.Post("/prune", func(c *fiber.Ctx) error {
+		return PruneImages(c, service)
+	})
+
+	imagesGroup.Get("/:name/inspect", func(c *fiber.Ctx) error {
+		return InspectImage(c, service)
 	})
 }
 
@@ -111,4 +135,84 @@ func DeleteUnusedImages(c *fiber.Ctx, service ImageService) error {
 		})
 	}
 	return c.JSON(fiber.Map{"message": "Unused images deleted successfully"})
+}
+
+func BuildImage(c *fiber.Ctx, service ImageService) error {
+	// Parse build context from the request body
+	buildContext := c.Body() // Assuming the build context is sent in the request body
+
+	// Parse tags query parameter into a slice of strings
+	tagsQuery := c.Query("tags", "")
+	var tags []string
+	if tagsQuery != "" {
+		tags = strings.Split(tagsQuery, ",")
+	}
+
+	options := types.ImageBuildOptions{
+		Tags: tags, // Use the parsed slice of tags
+	}
+
+	// Call the BuildImage service method
+	imageID, err := service.BuildImage(c.Context(), strings.NewReader(string(buildContext)), options)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"imageID": imageID,
+	})
+}
+
+func PullImage(c *fiber.Ctx, service ImageService) error {
+	imageName := c.Query("name")
+	tag := c.Query("tag", "latest")
+	err := service.PullImage(c.Context(), imageName, tag)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"message": "Image pulled successfully"})
+}
+
+func PushImage(c *fiber.Ctx, service ImageService) error {
+	imageName := c.Params("name")
+	options := image.PushOptions{}
+	err := service.PushImage(c.Context(), imageName, options)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"message": "Image pushed successfully"})
+}
+
+func SaveImage(c *fiber.Ctx, service ImageService) error {
+	var request struct {
+		Images []string `json:"images"`
+		Output string   `json:"output"`
+	}
+	if err := c.BodyParser(&request); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
+	}
+	err := service.SaveImage(c.Context(), request.Images, request.Output)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(fiber.Map{"message": "Images saved successfully"})
+}
+
+func PruneImages(c *fiber.Ctx, service ImageService) error {
+	report, err := service.PruneImages(c.Context())
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(report)
+}
+
+func InspectImage(c *fiber.Ctx, service ImageService) error {
+	imageName := c.Params("name")
+	inspect, err := service.InspectImage(imageName)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(inspect)
 }

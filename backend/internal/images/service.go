@@ -1,11 +1,16 @@
 package images
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"log"
+	"os"
 	"strings"
 
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 )
@@ -18,6 +23,12 @@ type ImageService interface {
 	SearchImages(query string) ([]string, error)
 	DeleteUnusedImages() error
 	GetImageHistory(imageName string) ([]image.HistoryResponseItem, error)
+	BuildImage(ctx context.Context, buildContext io.Reader, options types.ImageBuildOptions) (string, error)
+	PullImage(ctx context.Context, imageName, tag string) error
+	PushImage(ctx context.Context, imageName string, options image.PushOptions) error
+	SaveImage(ctx context.Context, imageNames []string, outputFile string) error
+	PruneImages(ctx context.Context) (image.PruneReport, error)
+	InspectImage(imageName string) (*types.ImageInspect, error)
 }
 
 type imageService struct {
@@ -124,6 +135,96 @@ func (s *imageService) GetImageHistory(imageName string) ([]image.HistoryRespons
 		return nil, fmt.Errorf("failed to get image history: %w", err)
 	}
 	return history, nil
+}
+
+func (s *imageService) BuildImage(ctx context.Context, buildContext io.Reader, options types.ImageBuildOptions) (string, error) {
+	response, err := s.cli.ImageBuild(ctx, buildContext, options)
+	if err != nil {
+		return "", fmt.Errorf("failed to build image: %w", err)
+	}
+	defer response.Body.Close()
+
+	// Parse response and return image ID
+	var imageID string
+	scanner := bufio.NewScanner(response.Body)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.Contains(line, "Successfully built") {
+			parts := strings.Fields(line)
+			imageID = parts[len(parts)-1]
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return "", fmt.Errorf("error reading build response: %w", err)
+	}
+	return imageID, nil
+}
+
+func (s *imageService) PullImage(ctx context.Context, imageName, tag string) error {
+	imageRef := fmt.Sprintf("%s:%s", imageName, tag)
+	response, err := s.cli.ImagePull(ctx, imageRef, image.PullOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to pull image: %w", err)
+	}
+	defer response.Close()
+
+	// Print output for logging
+	scanner := bufio.NewScanner(response)
+	for scanner.Scan() {
+		log.Println(scanner.Text())
+	}
+	return nil
+}
+
+func (s *imageService) PushImage(ctx context.Context, imageName string, options image.PushOptions) error {
+	response, err := s.cli.ImagePush(ctx, imageName, options)
+	if err != nil {
+		return fmt.Errorf("failed to push image: %w", err)
+	}
+	defer response.Close()
+
+	// Print output for logging
+	scanner := bufio.NewScanner(response)
+	for scanner.Scan() {
+		log.Println(scanner.Text())
+	}
+	return nil
+}
+
+func (s *imageService) SaveImage(ctx context.Context, imageNames []string, outputFile string) error {
+	response, err := s.cli.ImageSave(ctx, imageNames)
+	if err != nil {
+		return fmt.Errorf("failed to save images: %w", err)
+	}
+	defer response.Close()
+
+	file, err := os.Create(outputFile)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+	defer file.Close()
+
+	if _, err := io.Copy(file, response); err != nil {
+		return fmt.Errorf("failed to write image tar: %w", err)
+	}
+	log.Printf("Images saved to %s", outputFile)
+	return nil
+}
+
+func (s *imageService) PruneImages(ctx context.Context) (image.PruneReport, error) {
+	report, err := s.cli.ImagesPrune(ctx, filters.Args{})
+	if err != nil {
+		return image.PruneReport{}, fmt.Errorf("failed to prune images: %w", err)
+	}
+	return report, nil
+}
+
+func (s *imageService) InspectImage(imageName string) (*types.ImageInspect, error) {
+	inspect, _, err := s.cli.ImageInspectWithRaw(context.Background(), imageName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inspect image: %w", err)
+	}
+	return &inspect, nil
 }
 
 // Helper function for case-insensitive string match
