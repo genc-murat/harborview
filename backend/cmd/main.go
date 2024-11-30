@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/genc-murat/harborview/internal/auth"
+	"github.com/genc-murat/harborview/internal/containers"
 	"github.com/genc-murat/harborview/internal/images"
 	"github.com/genc-murat/harborview/pkg/config"
 	"github.com/genc-murat/harborview/pkg/middleware"
@@ -29,6 +30,7 @@ func main() {
 	// Routes
 	auth.RegisterRoutes(app)
 	images.RegisterRoutes(app, cfg)
+	containers.RegisterRoutes(app)
 
 	// Start server
 	log.Printf("Server starting on %s...", cfg.Server.Port)
