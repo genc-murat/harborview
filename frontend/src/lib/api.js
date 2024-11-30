@@ -12,7 +12,7 @@ const defaultOptions = {
 export const api = {
   // Containers
   getContainers: async () => {
-    const response = await fetch(`${API_BASE_URL}/containers`, defaultOptions);
+    const response = await fetch(`${API_BASE_URL}/containers?all=true`, defaultOptions);
     if (!response.ok) throw new Error('Failed to fetch containers');
     return response.json();
   },
