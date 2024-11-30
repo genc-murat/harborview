@@ -1,16 +1,24 @@
-// src/lib/api.js
 import { API_BASE_URL } from './constants';
+
+// Fetch için default options
+const defaultOptions = {
+  headers: {
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  }
+};
 
 export const api = {
   // Containers
   getContainers: async () => {
-    const response = await fetch(`${API_BASE_URL}/containers`);
+    const response = await fetch(`${API_BASE_URL}/containers`, defaultOptions);
     if (!response.ok) throw new Error('Failed to fetch containers');
     return response.json();
   },
 
   getContainerById: async (id) => {
-    const response = await fetch(`${API_BASE_URL}/containers/${id}`);
+    const response = await fetch(`${API_BASE_URL}/containers/${id}`, defaultOptions);
     if (!response.ok) throw new Error('Failed to fetch container');
     return response.json();
   },
@@ -19,6 +27,7 @@ export const api = {
   startContainer: async (id) => {
     const response = await fetch(`${API_BASE_URL}/containers/${id}/start`, {
       method: 'POST',
+      ...defaultOptions
     });
     if (!response.ok) throw new Error('Failed to start container');
     return response.json();
@@ -27,6 +36,7 @@ export const api = {
   stopContainer: async (id) => {
     const response = await fetch(`${API_BASE_URL}/containers/${id}/stop`, {
       method: 'POST',
+      ...defaultOptions
     });
     if (!response.ok) throw new Error('Failed to stop container');
     return response.json();
@@ -35,6 +45,7 @@ export const api = {
   restartContainer: async (id) => {
     const response = await fetch(`${API_BASE_URL}/containers/${id}/restart`, {
       method: 'POST',
+      ...defaultOptions
     });
     if (!response.ok) throw new Error('Failed to restart container');
     return response.json();
@@ -42,13 +53,13 @@ export const api = {
 
   // Images
   getImages: async () => {
-    const response = await fetch(`${API_BASE_URL}/images`);
+    const response = await fetch(`${API_BASE_URL}/images`, defaultOptions);
     if (!response.ok) throw new Error('Failed to fetch images');
     return response.json();
   },
 
   getImageById: async (id) => {
-    const response = await fetch(`${API_BASE_URL}/images/${id}/inspect`);
+    const response = await fetch(`${API_BASE_URL}/images/${id}/inspect`, defaultOptions);
     if (!response.ok) throw new Error('Failed to fetch image');
     return response.json();
   },
@@ -57,6 +68,7 @@ export const api = {
   deleteImage: async (id) => {
     const response = await fetch(`${API_BASE_URL}/images/${id}`, {
       method: 'DELETE',
+      ...defaultOptions
     });
     if (!response.ok) throw new Error('Failed to delete image');
     return response.json();
